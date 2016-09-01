@@ -10,7 +10,7 @@ import os
 
 
 
-map_div_to_type ={'193099':'BC','199014':'OA','RhapsodyCA':'OA', 'RhapsodyCARec':'BC'}
+
 
 def load_config():
     sql= []
