@@ -18,7 +18,10 @@ import logging
 
 NUM_WEEKS = 20
 
-Y_MARGIN = 0
+# add margin to x and y directions in terms
+X_MARGIN = 0.05
+Y_MARGIN = 0  
+
 
 '''
 date_since,  date type, is the 1st day (Sunday) of the week where DB query starts with
@@ -79,9 +82,10 @@ def render_data(input_matrix, index_no, div_no):
     col_nums = np.arange(3) + 1 + 3 * index_no
     
     ax.set_ylabel('TX') 
-    # ax.margins(0.05, None) set margins on y axis
-    # ax.margins(None, 0.5)
-    bar_pos_series = np.arange(len(input_matrix)) + Y_MARGIN
+    # ax.margins(x-padding, y-padding)
+    # manually set tick positions, and bar positions, better solution is to control margin at the plot/subplot level.
+    #bar_pos_series = np.arange(len(input_matrix)) + X_MARGIN
+    bar_pos_series = np.arange(len(input_matrix)) 
     '''
     bar(list_position, list_of height, width, color)
     list_position: list of position on the x_axis, 
@@ -116,13 +120,18 @@ def render_data(input_matrix, index_no, div_no):
     for tl in ax2.get_yticklabels():
         tl.set_color(color_map[2])
         
-    ax.set_xticks(np.arange(len(input_matrix) + Y_MARGIN ))
+    #ax.set_xticks(np.arange(len(input_matrix) + Y_MARGIN ))
+    ax.set_xticks(bar_pos_series)
+    ax.xaxis.set_ticks_position('bottom')
     ax.set_xticklabels(input_matrix[:,0], rotation=45, ha = 'right', size = 8)
     
     fig.legend( [bar1[0],  bar2[0], ax2.lines[0]],['Total Tx','Successful Tx','success rate'])
 
     plt.title( div_no + ' Weekly Transaction Success'  )
     plt.grid(True)
+    
+    # add padding horizontally, vertically,
+    plt.margins(X_MARGIN, Y_MARGIN)
     plt.show()
 
 
@@ -147,6 +156,10 @@ def update_data_file(file_name, data, divisions):
         payload['data'] = data
         pickle.dump(payload,fh)       
         
+
+
+
+
 if __name__ == '__main__':
 
     db_config, data_file_name = util.load_config()
