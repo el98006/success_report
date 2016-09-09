@@ -18,7 +18,7 @@ import logging
 
 NUM_WEEKS = 20
 
-Y_MARGIN = 1
+Y_MARGIN = 0
 
 '''
 date_since,  date type, is the 1st day (Sunday) of the week where DB query starts with
@@ -38,7 +38,7 @@ def generator_weekly_data(db_config, date_since = None):
         day1_of_starting_week = day1_of_ending_week - NUM_WEEKS * datetime.timedelta(days=7) 
       
     
-    while day1_of_starting_week < day1_of_ending_week: 
+    while day1_of_starting_week <= day1_of_ending_week: 
         col = []
         div = []
         str_start = day1_of_starting_week.strftime('%d-%b-%Y')
@@ -137,18 +137,25 @@ def load_history_data(file_name):
         print 'no history file, creating a empty one'
         return False
     with open(full_path,'rb') as fh:
-        array_history = pickle.load(fh)
-    return array_history
+        payload = pickle.load(fh)
+    return payload['data'], payload['divisions']
 
-        
+def update_data_file(file_name, data, divisions): 
+    with open(file_name,'wb') as fh:
+        payload = {}
+        payload['divisions'] = divisions
+        payload['data'] = data
+        pickle.dump(payload,fh)       
         
 if __name__ == '__main__':
 
     db_config, data_file_name = util.load_config()
     
-    history_data =  load_history_data(data_file_name)
     
-    if history_data: 
+    history_check_result = load_history_data(data_file_name)
+    
+    if history_check_result: 
+        history_data, list_of_divisions =  history_check_result 
         previous_date = history_data[-1][0]
         # compare the date of most recent history data to the 1st day of current week, if the same, it's update to date, no need to run the query, otherwise 
         # a generator is returned contains tuples of (new data, list of divisions) 
@@ -160,13 +167,17 @@ if __name__ == '__main__':
         #first time run, there is no pickle file created to hold the history data, 
         history_data = []
         gen_tuple_data_div = generator_weekly_data(db_config)
-    
-    for new_data, list_of_divisions in gen_tuple_data_div:
-        history_data.append(new_data)
-    
-    with open(data_file_name,'wb') as fh:
-        pickle.dump(history_data,fh)
-    
+        
+    # if there new data update, append to data_matrix
+    if gen_tuple_data_div: 
+        for new_data, list_of_divisions in gen_tuple_data_div:
+            history_data.append(new_data)
+            
+        update_data_file(data_file_name, history_data, list_of_divisions)
+        '''    
+        with open(data_file_name,'wb') as fh:
+            pickle.dump(history_data,fh)
+        '''
     for index, div_no in enumerate(list_of_divisions):
         render_data(np.array(history_data), index, div_no)
  
