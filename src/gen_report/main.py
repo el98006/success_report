@@ -8,7 +8,6 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.lines import Line2D
 from matplotlib.ticker import AutoMinorLocator
 import datetime
-import csv
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,12 +40,14 @@ def generator_weekly_data(db_config, date_since = None):
         day1_of_starting_week = day1_of_ending_week - NUM_WEEKS * datetime.timedelta(days=7) 
       
     
-    while day1_of_starting_week <= day1_of_ending_week: 
+    while day1_of_starting_week < day1_of_ending_week: 
         col = []
         div = []
         str_start = day1_of_starting_week.strftime('%d-%b-%Y')
         str_end = (day1_of_starting_week + datetime.timedelta(days=6)).strftime('%d-%b-%Y')
-        print str_start
+     
+        logger = logging.getLogger('root.generator_weekly_data')
+        logger.info(('start %s,  end %s') %(str_start, str_end))
         col.append(str_start)
         for d in util.map_div_to_type.keys():
             d1 = util.get_tx_count(db_config, str_start, str_end, d,False) 
@@ -55,6 +56,7 @@ def generator_weekly_data(db_config, date_since = None):
             col.append(d1)
             col.append(d2)
             col.append(d3)
+            logger.info('total Tx: %s, Succ Tx: %s, Succ Rate %s' %(d1, d2, d3))
             div.append(d)
         yield (col, div)
         day1_of_starting_week +=  datetime.timedelta(days=7)
@@ -141,9 +143,9 @@ def render_data(input_matrix, index_no, div_no):
 
 def load_history_data(file_name):
     full_path = os.path.join(os.path.dirname(__file__), file_name)
-    
+    logger = logging.getLogger('root.load_history_data')
     if not os.path.exists(full_path):
-        print 'no history file, creating a empty one'
+        logger.info( 'no history file, creating a empty one')
         return False
     with open(full_path,'rb') as fh:
         payload = pickle.load(fh)
@@ -157,19 +159,31 @@ def update_data_file(file_name, data, divisions):
         pickle.dump(payload,fh)       
         
 
-
-
+def init_logging():
+    logger = logging.getLogger('root')
+    logger.setLevel(logging.INFO)
+    
+    fh = logging.FileHandler('success_report.log')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    return logger
+    
 
 if __name__ == '__main__':
 
     db_config, data_file_name = util.load_config()
+   
+    logger = init_logging();
+    logger.info("log started")
     
-    
+   
     history_check_result = load_history_data(data_file_name)
     
     if history_check_result: 
         history_data, list_of_divisions =  history_check_result 
         previous_date = history_data[-1][0]
+        logging.info('load history data')
         # compare the date of most recent history data to the 1st day of current week, if the same, it's update to date, no need to run the query, otherwise 
         # a generator is returned contains tuples of (new data, list of divisions) 
         if datetime.date.today() - util.str_to_date(previous_date) > datetime.timedelta(days = 6):
@@ -185,7 +199,7 @@ if __name__ == '__main__':
     if gen_tuple_data_div: 
         for new_data, list_of_divisions in gen_tuple_data_div:
             history_data.append(new_data)
-            
+        logging.info('append new data to data file')    
         update_data_file(data_file_name, history_data, list_of_divisions)
         '''    
         with open(data_file_name,'wb') as fh:
@@ -194,5 +208,5 @@ if __name__ == '__main__':
     for index, div_no in enumerate(list_of_divisions):
         render_data(np.array(history_data), index, div_no)
  
-    print "completed successfully"
+    logger.info( "completed successfully")
     
