@@ -4,7 +4,7 @@ Created on Jul 14, 2016
 @author: eli
 '''
 
-from matplotlib.ticker import FuncFormatter
+#from matplotlib.ticker import FuncFormatter
 from matplotlib.lines import Line2D
 from matplotlib.ticker import AutoMinorLocator
 import datetime
@@ -25,6 +25,7 @@ Y_MARGIN = 0
 '''
 date_since,  date type, is the 1st day (Sunday) of the week where DB query starts with
 if date_since is None, then starting with 20 weeks back until 1st day of current week.
+for longer history, change NUM_WEEKS with number > 20
 '''
 
 def generator_weekly_data(db_config, date_since = None):
@@ -70,7 +71,7 @@ def render_data(input_matrix, index_no, div_no):
     bar_width = 0.2 
     fig = plt.figure()
     #horizontal_alignment options
-    ha = ['left', 'center', 'right']
+    #ha = ['left', 'center', 'right']
 
     ''' 2nd Y axis is plot for success rate, percentage, from 0% to 100% '''
     
@@ -80,7 +81,7 @@ def render_data(input_matrix, index_no, div_no):
     #add 0.15 inch to the bottom of the plots to accomodate longer x-labels
     fig.subplots_adjust(bottom = 0.15)
     
-    # each division takes 3 columns, series 1 takes columm 1, 2, and 3, series 2 takes, 4,5, and 6, in turn
+    # each division takes 3 columns, series 1 takes column 1, 2, and 3, series 2 takes, 4,5, and 6, in turn
     col_nums = np.arange(3) + 1 + 3 * index_no
     
     ax.set_ylabel('TX') 
