@@ -47,7 +47,6 @@ def generator_weekly_data(db_config, date_since = None):
         str_start = day1_of_starting_week.strftime('%d-%b-%Y')
         str_end = (day1_of_starting_week + datetime.timedelta(days=6)).strftime('%d-%b-%Y')
      
-        logger = logging.getLogger('root.generator_weekly_data')
         logger.info(('start %s,  end %s') %(str_start, str_end))
         col.append(str_start)
         for d in util.map_div_to_type.keys():
@@ -66,7 +65,7 @@ def generator_weekly_data(db_config, date_since = None):
 def format_y(value,pos):
     return '{:,.0f}'.format(value)
         
-def render_data(input_matrix, index_no, div_no):
+def render_data(input_matrix, index_no, div_no, rec_no=NUM_WEEKS):
     color_map =['#4F88BE','#008032','#C82121']
     bar_width = 0.2 
     fig = plt.figure()
@@ -88,15 +87,18 @@ def render_data(input_matrix, index_no, div_no):
     # ax.margins(x-padding, y-padding)
     # manually set tick positions, and bar positions, better solution is to control margin at the plot/subplot level.
     #bar_pos_series = np.arange(len(input_matrix)) + X_MARGIN
-    bar_pos_series = np.arange(len(input_matrix)) 
+    bar_pos_series = np.arange(rec_no) if rec_no < len(input_matrix) else np.arange(len(input_matrix))
+
+    #bar_pos_series = if len(input_matrix) np.arange(len(input_matrix)) 
     '''
     bar(list_position, list_of height, width, color)
     list_position: list of position on the x_axis, 
     list_height: data series 
     '''
-    
-    bar1 = ax.bar(bar_pos_series, input_matrix[:,col_nums[0]], bar_width,color=color_map[0])
-    bar2 = ax.bar(bar_pos_series + bar_width,  input_matrix[:,col_nums[1]], bar_width, color=color_map[1])
+
+    print bar_pos_series
+    bar1 = ax.bar(bar_pos_series, input_matrix[-rec_no:,col_nums[0]], bar_width,color=color_map[0])
+    bar2 = ax.bar(bar_pos_series + bar_width,  input_matrix[-rec_no:,col_nums[1]], bar_width, color=color_map[1])
     
    
     ''' 
@@ -118,7 +120,7 @@ def render_data(input_matrix, index_no, div_no):
     
     '''plot the success rate on ax2'''
     ax2.set_ylim(0,100)
-    ax2.plot(input_matrix[:,col_nums[2]], color=color_map[2], linewidth=2,marker=Line2D.filled_markers[1], markersize=10) 
+    ax2.plot(input_matrix[-rec_no:,col_nums[2]], color=color_map[2], linewidth=2,marker=Line2D.filled_markers[1], markersize=10) 
     ax2.set_ylabel('success rate %',color=color_map[2])
     for tl in ax2.get_yticklabels():
         tl.set_color(color_map[2])
@@ -126,7 +128,7 @@ def render_data(input_matrix, index_no, div_no):
     #ax.set_xticks(np.arange(len(input_matrix) + Y_MARGIN ))
     ax.set_xticks(bar_pos_series)
     ax.xaxis.set_ticks_position('bottom')
-    ax.set_xticklabels(input_matrix[:,0], rotation=45, ha = 'right', size = 8)
+    ax.set_xticklabels(input_matrix[-rec_no:,0], rotation=45, ha = 'right', size = 8)
     
     fig.legend( [bar1[0],  bar2[0], ax2.lines[0]],['Total Tx','Successful Tx','success rate'])
 
@@ -169,7 +171,24 @@ def init_logging():
     fh.setFormatter(formatter)
     logger.addHandler(fh)
     return logger
+
+def de_dupe(history_data):    
+    history_data, divisions = history_data
     
+    rec_no = len(history_data) 
+    cnt = 0
+    date_list = []
+    clean_rec = []
+    for r  in history_data:
+        if r[0] not in date_list:
+            date_list.append(r[0])
+            clean_rec.append(r)
+            cnt += 1
+        else:
+            logger.info('duplicate records on {}'.format(r[0]))
+    print clean_rec
+    logger.info('de_dupe before{}, after{}'.format(rec_no, cnt))
+    return clean_rec, divisions        
 
 if __name__ == '__main__':
 
@@ -181,33 +200,46 @@ if __name__ == '__main__':
    
     history_check_result = load_history_data(data_file_name)
     
+    # turn it on  when needed
+    # history_check_result = de_dupe(history_check_result)
+
+    
     if history_check_result: 
         history_data, list_of_divisions =  history_check_result 
         previous_date = history_data[-1][0]
-        logging.info('load history data')
+        logging.info('load history data, most recent data on day of{}'.format(previous_date))
         # compare the date of most recent history data to the 1st day of current week, if the same, it's update to date, no need to run the query, otherwise 
         # a generator is returned contains tuples of (new data, list of divisions) 
-        if datetime.date.today() - util.str_to_date(previous_date) > datetime.timedelta(days = 6):
+        if datetime.date.today() - util.str_to_date(previous_date) > datetime.timedelta(days=13):
+                                                                                       
+            logger.info('getting data since {} from DB'.format(previous_date))
             gen_tuple_data_div = generator_weekly_data(db_config, date_since = util.str_to_date(previous_date))
         else:
-            gen_tuple_data_div = False
+            logger.info('last reporting date {}, run report 7 days after '.format(previous_date))
+            update_history = False
+            logger.info ('no new data, exiting')
+        
     else:
         #first time run, there is no pickle file created to hold the history data, 
         history_data = []
         gen_tuple_data_div = generator_weekly_data(db_config)
-        
+        update_history = True
     # if there new data update, append to data_matrix
-    if gen_tuple_data_div: 
-        for new_data, list_of_divisions in gen_tuple_data_div:
-            history_data.append(new_data)
-        logging.info('append new data to data file')    
+ 
+    if update_history: 
+        for new_rec, division in gen_tuple_data_div:
+            history_data.append(new_rec)
+            if division not in list_of_divisions:
+                list_of_divisions.append(division)
+            logger.info('append data to histoy data')
         update_data_file(data_file_name, history_data, list_of_divisions)
         '''    
         with open(data_file_name,'wb') as fh:
             pickle.dump(history_data,fh)
         '''
     for index, div_no in enumerate(list_of_divisions):
-        render_data(np.array(history_data), index, div_no)
+        render_data(np.array(history_data), index, div_no, rec_no=30)
  
     logger.info( "completed successfully")
+    
     
